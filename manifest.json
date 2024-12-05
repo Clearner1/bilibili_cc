@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Bilibili CC Viewer",
+  "version": "1.0",
+  "description": "在页面上显示B站视频的CC字幕",
+  "permissions": [
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://*.bilibili.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.bilibili.com/video/*"],
+      "js": ["content.js"],
+      "css": ["style.css"]
+    }
+  ]
+}

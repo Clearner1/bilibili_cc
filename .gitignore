@@ -1,0 +1,11 @@
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/ 

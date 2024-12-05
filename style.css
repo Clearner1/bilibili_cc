@@ -1,0 +1,28 @@
+#cc-container {
+  position: fixed;
+  right: 20px;
+  top: 20px;
+  width: 300px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+  z-index: 9999;
+}
+
+.cc-item {
+  margin-bottom: 15px;
+}
+
+.cc-time {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 5px;
+}
+
+.cc-text {
+  font-size: 14px;
+  line-height: 1.4;
+} 
