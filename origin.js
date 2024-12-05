@@ -2,7 +2,7 @@
 // @name         Bilibili CC字幕实时显示插件
 // @name:en      Bilibili CC Subtitle Extractor
 // @namespace    http://tampermonkey.net/
-// @version      1.1.0
+// @version      1.2.0
 // @description  在B站播放器中集成CC字幕列表
 // @description:en  Integrate CC subtitle list in Bilibili video player
 // @author       Zane
