@@ -118,7 +118,7 @@
             style.textContent = `
                 .subtitle-container {
                     font-family: "PingFang SC", HarmonyOS_Regular, "Helvetica Neue", "Microsoft YaHei", sans-serif;
-                    font-size: 12px;
+                    font-size: 14px;
                     -webkit-font-smoothing: antialiased;
                     color: rgb(24, 25, 28);
                     margin-top: 12px;
@@ -246,33 +246,6 @@
                     align-items: center;
                 }
  
-                .download-btn {
-                    display: flex;
-                    align-items: center;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    color: #00a1d6;
-                    transition: background-color 0.3s;
-                }
- 
-                .download-btn:hover {
-                    background-color: rgba(0, 161, 214, 0.1);
-                }
- 
-                .download-icon {
-                    margin-right: 4px;
-                }
- 
-                .format-select {
-                    margin-left: 8px;
-                    padding: 2px 4px;
-                    border: 1px solid #e3e5e7;
-                    border-radius: 4px;
-                    font-size: 12px;
-                    color: #666;
-                }
- 
                 .toggle-view-btn {
                     margin-left: auto;
                     padding: 4px 8px;
@@ -357,18 +330,6 @@
                     </div>
                     <div class="subtitle-function-btn">
                         <span>字幕内容</span>
-                    </div>
-                </div>
-                <div class="subtitle-function-right">
-                    <select class="format-select">
-                        <option value="srt">SRT</option>
-                        <option value="txt">TXT</option>
-                    </select>
-                    <div class="download-btn">
-                        <svg class="download-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-5 4h10v-2H7v2z"/>
-                        </svg>
-                        <span>下载字幕</span>
                     </div>
                 </div>
             `;
@@ -477,7 +438,7 @@
             const pos = this.getRelativePosition(element, container);
             const containerHeight = container.clientHeight;
             
-            // 考虑一定的缓冲区域
+            // 虑一定的缓冲区域
             const buffer = 50;
             return pos.top >= -buffer && pos.bottom <= containerHeight + buffer;
         },
@@ -612,42 +573,6 @@
         }
     };
  
-    // 字幕导出模块
-    const SubtitleExporter = {
-        // 获取视频标题
-        getVideoTitle() {
-            return document.querySelector('h1.video-title')?.textContent?.trim() || 'subtitle';
-        },
- 
-        // 导出为SRT格式
-        exportToSRT(subtitles) {
-            return subtitles.body.map((item, index) => {
-                return `${index + 1}\n${TimeFormatter.formatTimeWithMs(item.from)} --> ${TimeFormatter.formatTimeWithMs(item.to)}\n${item.content}\n`;
-            }).join('\n');
-        },
- 
-        // 导出为TXT格式
-        exportToTXT(subtitles) {
-            return subtitles.body.map(item => {
-                return `[${TimeFormatter.formatTime(item.from)}] ${item.content}`;
-            }).join('\n');
-        },
- 
-        // 下载文件
-        download(content, format) {
-            const title = this.getVideoTitle();
-            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${title}.${format}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-    };
- 
     // 主函数更新
     async function main() {
         // 等待弹幕列表容器加载
@@ -718,28 +643,6 @@
                     SubtitleSync.highlightCurrentSubtitle(subtitles, content, isMergedView);
                 }
             }, 100);
- 
-            // 添加下载按钮事件监听
-            const downloadBtn = container.querySelector('.download-btn');
-            const formatSelect = container.querySelector('.format-select');
- 
-            downloadBtn.addEventListener('click', () => {
-                if (!subtitles) {
-                    alert('字幕数据未加载，请稍后再试');
-                    return;
-                }
- 
-                const format = formatSelect.value;
-                let content;
-                
-                if (format === 'srt') {
-                    content = SubtitleExporter.exportToSRT(subtitles);
-                } else {
-                    content = SubtitleExporter.exportToTXT(subtitles);
-                }
-                
-                SubtitleExporter.download(content, format);
-            });
  
             // 在合并视图中添加点击事件处理
             content.addEventListener('click', (e) => {
