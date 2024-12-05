@@ -292,6 +292,54 @@
                     display: inline;
                     white-space: pre-wrap;
                 }
+
+                .copy-dropdown {
+                    position: relative;
+                    display: inline-block;
+                }
+
+                .copy-btn {
+                    padding: 4px 8px;
+                    border: 1px solid #e3e5e7;
+                    border-radius: 4px;
+                    background: white;
+                    color: #00a1d6;
+                    cursor: pointer;
+                    font-size: 12px;
+                    transition: all 0.3s;
+                    margin-left: 8px;
+                }
+
+                .copy-btn:hover {
+                    background: rgba(0, 161, 214, 0.1);
+                }
+
+                .copy-menu {
+                    position: absolute;
+                    top: 100%;
+                    right: 0;
+                    background: white;
+                    border: 1px solid #e3e5e7;
+                    border-radius: 4px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    display: none;
+                    z-index: 1000;
+                }
+
+                .copy-menu.show {
+                    display: block;
+                }
+
+                .copy-menu-item {
+                    padding: 8px 16px;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    transition: all 0.3s;
+                }
+
+                .copy-menu-item:hover {
+                    background: rgba(0, 161, 214, 0.1);
+                }
             `;
             document.head.appendChild(style);
         },
@@ -314,7 +362,16 @@
                     </svg>
                 </div>
                 <span>字幕列表</span>
-                <button class="toggle-view-btn">切换显示模式</button>
+                <div style="margin-left: auto; display: flex; align-items: center;">
+                    <button class="toggle-view-btn">切换显示模式</button>
+                    <div class="copy-dropdown">
+                        <button class="copy-btn">复制字幕</button>
+                        <div class="copy-menu">
+                            <div class="copy-menu-item" data-type="text">复制纯文本</div>
+                            <div class="copy-menu-item" data-type="srt">复制SRT格式</div>
+                        </div>
+                    </div>
+                </div>
             `;
     
             // 内容区
@@ -584,6 +641,48 @@
         }
     };
  
+    // 添加新的复制功能模块
+    const SubtitleCopy = {
+        // 生成纯文本格式
+        generatePlainText(subtitles) {
+            return subtitles.body.map(item => item.content).join('\n');
+        },
+
+        // 生成SRT格式
+        generateSRT(subtitles) {
+            return subtitles.body.map((item, index) => {
+                const startTime = TimeFormatter.formatTimeWithMs(item.from);
+                const endTime = TimeFormatter.formatTimeWithMs(item.to);
+                return `${index + 1}\n${startTime} --> ${endTime}\n${item.content}\n`;
+            }).join('\n');
+        },
+
+        // 复制到剪贴板
+        async copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                // 可以添加一个简单的提示
+                const tip = document.createElement('div');
+                tip.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(0,0,0,0.7);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    z-index: 10000;
+                `;
+                tip.textContent = '复制成功';
+                document.body.appendChild(tip);
+                setTimeout(() => tip.remove(), 1500);
+            } catch (err) {
+                console.error('复制失败:', err);
+            }
+        }
+    };
+ 
     // 主函数更新
     async function main() {
         // 等待弹幕列表容器加载
@@ -662,6 +761,35 @@
                     const from = parseFloat(span.dataset.from);
                     window.player.seek(from);
                 }
+            });
+ 
+            // 添加新的复制功能模块
+            const copyBtn = container.querySelector('.copy-btn');
+            const copyMenu = container.querySelector('.copy-menu');
+            const copyMenuItems = container.querySelectorAll('.copy-menu-item');
+
+            // 切换下拉菜单
+            copyBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                copyMenu.classList.toggle('show');
+            });
+
+            // 点击其他地方关闭下拉菜单
+            document.addEventListener('click', () => {
+                copyMenu.classList.remove('show');
+            });
+
+            // 复制功能
+            copyMenuItems.forEach(item => {
+                item.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const type = item.dataset.type;
+                    const text = type === 'text' 
+                        ? SubtitleCopy.generatePlainText(subtitles)
+                        : SubtitleCopy.generateSRT(subtitles);
+                    await SubtitleCopy.copyToClipboard(text);
+                    copyMenu.classList.remove('show');
+                });
             });
  
         } catch (error) {
