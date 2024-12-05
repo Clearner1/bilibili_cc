@@ -291,24 +291,33 @@
  
                 .merged-view {
                     padding: 12px;
-                    line-height: 1.5;
+                    line-height: 1.8;
                     white-space: pre-wrap;
                     word-break: break-word;
                 }
 
                 .subtitle-span {
-                    transition: background-color 0.3s;
+                    display: inline;
+                    transition: all 0.3s ease;
                     border-radius: 2px;
                     cursor: pointer;
+                    padding: 2px 0;
                 }
 
                 .subtitle-span.active {
                     background-color: rgba(0, 161, 214, 0.1);
                     color: var(--brand_blue, #00a1d6);
+                    padding: 2px 4px;
+                    margin: 0 -4px;
                 }
 
                 .subtitle-span:hover {
                     background-color: rgba(0, 161, 214, 0.05);
+                }
+
+                .subtitle-separator {
+                    display: inline;
+                    white-space: pre-wrap;
                 }
             `;
             document.head.appendChild(style);
@@ -367,18 +376,10 @@
             const wrap = document.createElement('div');
             wrap.className = 'subtitle-wrap';
  
-            // 更新滚轮事件处理逻辑
-            wrap.addEventListener('wheel', (e) => {
-                if (this.isElementScrollable(wrap)) {
-                    const isAtTop = wrap.scrollTop === 0 && e.deltaY < 0;
-                    const isAtBottom = wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 1 && e.deltaY > 0;
-                    
-                    // 只在到达边界时阻止事件
-                    if (!isAtTop && !isAtBottom) {
-                        e.preventDefault();
-                    }
-                }
-            }, { passive: false });
+            // 移除原有的wheel事件处理，改为监听scroll事件
+            wrap.addEventListener('scroll', () => {
+                SubtitleSync.ScrollControl.onManualScroll();
+            });
             
             content.appendChild(function_bar);
             content.appendChild(wrap);
@@ -395,6 +396,24 @@
         isVideoPlaying: true, // 视频播放状态
         lastManualScrollTime: 0, // 最后一次手动滚动时间
         
+        // 添加新的滚动控制对象
+        ScrollControl: {
+            isManualScrolling: false,
+            scrollTimeout: null,
+            
+            onManualScroll() {
+                this.isManualScrolling = true;
+                clearTimeout(this.scrollTimeout);
+                this.scrollTimeout = setTimeout(() => {
+                    this.isManualScrolling = false;
+                }, 3000); // 3秒后恢复自动滚动
+            },
+            
+            shouldAutoScroll() {
+                return !this.isManualScrolling;
+            }
+        },
+ 
         displaySubtitles(subtitles, container, isMergedView = false) {
             if (isMergedView) {
                 this.displayMergedSubtitles(subtitles, container);
@@ -426,7 +445,7 @@
                 this.lastManualScrollTime = Date.now();
             });
  
-            // 监听视频播放状态
+            // 监听视播放状态
             if (window.player) {
                 const observer = new MutationObserver(() => {
                     const video = document.querySelector('video');
@@ -475,33 +494,47 @@
             });
         },
  
+        // 更新highlightCurrentSubtitle方法
         highlightCurrentSubtitle(subtitles, container, isMergedView = false) {
             const currentTime = window.player?.getCurrentTime() || 0;
             
             if (isMergedView) {
-                // 合并视图的高亮逻辑
-                container.querySelectorAll('.subtitle-span').forEach(span => {
+                // 获取所有字幕span
+                const spans = container.querySelectorAll('.subtitle-span');
+                let activeSpanFound = false;
+
+                spans.forEach(span => {
                     const from = parseFloat(span.dataset.from);
                     const to = parseFloat(span.dataset.to);
                     
                     if (currentTime >= from && currentTime <= to) {
                         span.classList.add('active');
-                        // 如果不在视图中，滚动到可见位置
-                        if (!this.isElementInViewport(span, container)) {
-                            this.smoothScrollToElement(span, container);
+                        activeSpanFound = true;
+                        
+                        // 只在应该自动滚动时执行滚动
+                        if (this.isVideoPlaying && this.ScrollControl.shouldAutoScroll()) {
+                            if (!this.isElementInViewport(span, container)) {
+                                this.smoothScrollToElement(span, container);
+                            }
                         }
                     } else {
                         span.classList.remove('active');
                     }
                 });
+
+                // 如果没有找到活动的span，可能需要特殊处理
+                if (!activeSpanFound) {
+                    // 可以选择最近的字幕
+                    this.highlightNearestSubtitle(currentTime, spans);
+                }
             } else {
-                // 原有的单条显示逻辑保持不变
+                // 单条显示模式的高亮逻辑
                 container.querySelectorAll('.subtitle-item').forEach(item => {
                     item.classList.remove('active');
                 });
 
                 const currentSubtitle = subtitles.body.find(item => 
-                    currentTime >= item.from && currentTime <= item.to
+                    currentTime >= item.from && currentTime <= to
                 );
 
                 if (currentSubtitle) {
@@ -510,8 +543,8 @@
                     
                     if (currentElement) {
                         currentElement.classList.add('active');
-                        
-                        if (this.isVideoPlaying && Date.now() - this.lastManualScrollTime > 2000) {
+                        // 只在应该自动滚动时执行滚动
+                        if (this.isVideoPlaying && this.ScrollControl.shouldAutoScroll()) {
                             if (!this.isElementInViewport(currentElement, container)) {
                                 this.smoothScrollToElement(currentElement, container);
                             }
@@ -523,20 +556,59 @@
  
         // 添加新方法用于显示合并视图
         displayMergedSubtitles(subtitles, container) {
-            const mergedContent = subtitles.body.map((item, index) => {
-                // 为每个字幕片段创建带有时间戳和索引的span
-                return `<span class="subtitle-span" 
-                    data-index="${index}" 
-                    data-from="${item.from}" 
-                    data-to="${item.to}"
-                >${item.content} </span>`;  // 注意这里加了空格分隔
-            }).join('');
+            // 创建包装器div
+            const mergedContent = document.createElement('div');
+            mergedContent.className = 'merged-view';
+            
+            // 处理每个字幕
+            subtitles.body.forEach((item, index) => {
+                // 创建字幕span
+                const subtitleSpan = document.createElement('span');
+                subtitleSpan.className = 'subtitle-span';
+                subtitleSpan.dataset.index = index;
+                subtitleSpan.dataset.from = item.from;
+                subtitleSpan.dataset.to = item.to;
+                subtitleSpan.textContent = item.content;
+                
+                // 添加到容器
+                mergedContent.appendChild(subtitleSpan);
+                
+                // 添加分隔符（空格）
+                if (index < subtitles.body.length - 1) {
+                    const separator = document.createElement('span');
+                    separator.className = 'subtitle-separator';
+                    separator.textContent = ' ';
+                    mergedContent.appendChild(separator);
+                }
+            });
 
-            container.innerHTML = `
-                <div class="merged-view">
-                    ${mergedContent}
-                </div>
-            `;
+            // 清空并设置新内容
+            container.innerHTML = '';
+            container.appendChild(mergedContent);
+        },
+ 
+        // 添加辅助方法来处理最近字幕的高亮
+        highlightNearestSubtitle(currentTime, spans) {
+            let nearestSpan = null;
+            let minDiff = Infinity;
+
+            spans.forEach(span => {
+                const from = parseFloat(span.dataset.from);
+                const to = parseFloat(span.dataset.to);
+                const diff = Math.min(
+                    Math.abs(currentTime - from),
+                    Math.abs(currentTime - to)
+                );
+
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    nearestSpan = span;
+                }
+            });
+
+            if (nearestSpan && minDiff < 1) { // 1秒内的最近字幕
+                nearestSpan.classList.add('active');
+            }
         }
     };
  
