@@ -337,9 +337,9 @@
             const wrap = document.createElement('div');
             wrap.className = 'subtitle-wrap';
  
-            // 移除原有的wheel事件处理，改为监听scroll事件
+            // 更新滚动事件监听
             wrap.addEventListener('scroll', () => {
-                SubtitleSync.ScrollControl.onManualScroll();
+                SubtitleSync.ScrollManager.onManualScroll();
             });
             
             content.appendChild(function_bar);
@@ -354,24 +354,34 @@
  
     // 字幕同步模块更新
     const SubtitleSync = {
-        isVideoPlaying: true, // 视频播放状态
-        lastManualScrollTime: 0, // 最后一次手动滚动时间
+        isVideoPlaying: true,
         
-        // 添加新的滚动控制对象
-        ScrollControl: {
-            isManualScrolling: false,
-            scrollTimeout: null,
+        // 新增统一的滚动管理器
+        ScrollManager: {
+            state: {
+                isManualScrolling: false,
+                scrollTimeout: null,
+                lastActiveIndex: -1
+            },
             
             onManualScroll() {
-                this.isManualScrolling = true;
-                clearTimeout(this.scrollTimeout);
-                this.scrollTimeout = setTimeout(() => {
-                    this.isManualScrolling = false;
-                }, 3000); // 3秒后恢复自动滚动
+                this.state.isManualScrolling = true;
+                clearTimeout(this.state.scrollTimeout);
+                this.state.scrollTimeout = setTimeout(() => {
+                    this.state.isManualScrolling = false;
+                }, 3000);
             },
             
             shouldAutoScroll() {
-                return !this.isManualScrolling;
+                return !this.state.isManualScrolling;
+            },
+            
+            updateActiveIndex(index) {
+                if (this.state.lastActiveIndex !== index) {
+                    this.state.lastActiveIndex = index;
+                    return true; // 表示需要滚动
+                }
+                return false;
             }
         },
  
@@ -401,9 +411,9 @@
                 });
             });
  
-            // 添加滚动监听
+            // 更新滚动监听
             container.addEventListener('scroll', () => {
-                this.lastManualScrollTime = Date.now();
+                this.ScrollManager.onManualScroll();
             });
  
             // 监听视播放状态
@@ -472,8 +482,9 @@
                         span.classList.add('active');
                         activeSpanFound = true;
                         
-                        // 只在应该自动滚动时执行滚动
-                        if (this.isVideoPlaying && this.ScrollControl.shouldAutoScroll()) {
+                        const index = parseInt(span.dataset.index);
+                        if (this.isVideoPlaying && this.ScrollManager.shouldAutoScroll() && 
+                            this.ScrollManager.updateActiveIndex(index)) {
                             if (!this.isElementInViewport(span, container)) {
                                 this.smoothScrollToElement(span, container);
                             }
@@ -483,19 +494,17 @@
                     }
                 });
 
-                // 如果没有找到活动的span，可能需要特殊处理
                 if (!activeSpanFound) {
-                    // 可以选择最近的字幕
                     this.highlightNearestSubtitle(currentTime, spans);
                 }
             } else {
-                // 单条显示模式的高亮逻辑
+                // 修复单条显示模式的高亮逻辑
                 container.querySelectorAll('.subtitle-item').forEach(item => {
                     item.classList.remove('active');
                 });
 
                 const currentSubtitle = subtitles.body.find(item => 
-                    currentTime >= item.from && currentTime <= to
+                    currentTime >= item.from && currentTime <= item.to  // 修复这里的bug
                 );
 
                 if (currentSubtitle) {
@@ -504,8 +513,10 @@
                     
                     if (currentElement) {
                         currentElement.classList.add('active');
-                        // 只在应该自动滚动时执行滚动
-                        if (this.isVideoPlaying && this.ScrollControl.shouldAutoScroll()) {
+                        
+                        // 使用ScrollManager控制滚动
+                        if (this.isVideoPlaying && this.ScrollManager.shouldAutoScroll() && 
+                            this.ScrollManager.updateActiveIndex(index)) {
                             if (!this.isElementInViewport(currentElement, container)) {
                                 this.smoothScrollToElement(currentElement, container);
                             }
